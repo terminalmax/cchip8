@@ -1,9 +1,10 @@
-#define _CRT_SECURE_NO_DEPRECATE //Visual Studio does not like fopen
+#define _CRT_SECURE_NO_DEPRECATE //Visual Studio does not like fopen or scanf  > :|
 
 #include<SDL.h>
 #include<stdio.h>
 #include<stdlib.h>
 #include<string.h>
+#include<time.h>
 
 //Resolution of CHIP-8
 #define SCREEN_HEIGHT 32
@@ -23,7 +24,7 @@
 
 //Chip8 execution starts from memory address 0x200
 #define STARTING_ADDRESS 0x200
-#define ENDING_ADDRESS 0xFFF
+#define ENDING_ADDRESS   0xFFF
 
 //Chip8 Variables
 uint16_t opcode = 0;                         //Holds current opcode. Each instruction is exactly 2bytes (16bits) long
@@ -39,7 +40,7 @@ uint8_t stack_pointer = 0;  //Holds the top location of stack
 uint8_t delay_timer = 0;
 uint8_t sound_timer = 0;
 
-uint32_t display[32 * 64] = { 0 }; //The display array is used to store pixel information
+uint32_t display[SCREEN_HEIGHT * SCREEN_WIDTH] = { 0 }; //The display array is used to store pixel information
 int keys[16]; //Chip-8 has 16 keys
 
 void initializeChip()
@@ -93,7 +94,7 @@ int readRom(const char* filename)
 
     for (int i = 0; i < size; i++)
     {
-        printf("%u ", buffer[i]);
+        printf("%x ", buffer[i]);
     }
 
 
@@ -128,24 +129,24 @@ void chip_cycle()
     case 0x0:
         switch (opcode & 0x00FF)
         {
-        case 0xE0: memset(display, 0, sizeof(display)); break;
-        case 0xEE: break;
-        default:  printf("Invalid OPCODE at Branch 0x0 : %u", opcode); break;
+        case 0xE0:  memset(display, 0, sizeof(display)); break;
+        case 0xEE:  program_counter = stack[stack_pointer--]; break;
+        default:    printf("Invalid OPCODE at Branch 0x0 : %u", opcode); break;
         }break;
-    case 0x1: program_counter = _NNN; break;
-    case 0x2:; break;
-    case 0x3:; break;
-    case 0x4:; break;
-    case 0x5:; break;
-    case 0x6: VX = _NN; break;
-    case 0x7: VX += _NN; break;
+    case 0x2:   stack[++stack_pointer] = program_counter;
+    case 0x1:   program_counter = _NNN; break;
+    case 0x3:   if(VX == _NN)program_counter+=2; break;
+    case 0x4:   if(VX != _NN)program_counter+=2; break;
+    case 0x5:   if(VX == VY)program_counter+=2; break;
+    case 0x6:   if(VX = _NN); break;
+    case 0x7:   if(VX += _NN); break;
     case 0x8:
         switch (opcode & 0x000F)
         {
-        case 0x0:; break;
-        case 0x1:; break;
-        case 0x2:; break;
-        case 0x3:; break;
+        case 0x0:   VX = VY; break;
+        case 0x1:   VX |= VY; break;
+        case 0x2:   VX &= VY; break;
+        case 0x3:   VX ^= VY; break;
         case 0x4:; break;
         case 0x5:; break;
         case 0x6:; break;
@@ -153,7 +154,7 @@ void chip_cycle()
         case 0xE:; break;
         default:  printf("Invalid OPCODE at Branch 0x8 : %u", opcode); break;
         }break;
-    case 0x9:; break;
+    case 0x9:if(VX != VY)program_counter+=2; break;
     case 0xA: index_register = _NNN; break;
     case 0xB:; break;
     case 0xC:; break;
@@ -165,11 +166,11 @@ void chip_cycle()
         for (int i = 0; i < _N; ++i)
             for (int j = 0; j < 8; ++j)
             {
-                uint32_t* screenpixel = &display[(((VY % 32) + i) * SCREEN_HEIGHT) + ((VX % 64) + i)];
+                uint32_t* screenpixel = &display[(((VY % 32) + i) * SCREEN_HEIGHT) + ((VX % 64) + j)];
                 if (Memory[index_register + i] & (0x80 >> j))
                 {
-                    if (*screenpixel) VF = 1;
-                    *screenpixel ^= 0xFFFFFF;
+                    if (*screenpixel == 0xFFFFFFFF) VF = 1;
+                    *screenpixel ^= 0xFFFFFFFF;
                 }
             }
 
@@ -177,17 +178,17 @@ void chip_cycle()
     case 0xE:
         switch (opcode & 0x00FF)
         {
-        case 0x9E:; break;
-        case 0xA1:; break;
+        case 0x9E:if(keys[VX] == 1)program_counter+=2; break;
+        case 0xA1:if(keys[VX] == 0)program_counter+=2; break;
         default: printf("Invalid OPCODE at Branch 0xE : %u", opcode); break;
         }
     case 0xF:
         switch (opcode & 0x00FF)
         {
-        case 0x07:; break;
+        case 0x07:  VX = delay_timer; break;
         case 0x0A:; break;
-        case 0x15:; break;
-        case 0x18:; break;
+        case 0x15:  delay_timer = VX; break;
+        case 0x18:  sound_timer = VX; break;
         case 0x1E:; break;
         case 0x29:; break;
         case 0x33:; break;
@@ -199,8 +200,8 @@ void chip_cycle()
     }
 
     //Change timers
-    if (delay_timer > 0) --delay_timer;
-    if (sound_timer > 0) --sound_timer;
+    if (delay_timer > 0) --delay_timer; 
+    if (sound_timer > 0) --sound_timer; //Play sound when soundtimer > 0
 
 }
 
@@ -290,9 +291,8 @@ int poll_events()
             }break;
         default:break;
         }
-        return 1;
     }
-
+    return 1;
 }
 
 //Called every time the screen needs to be updated
@@ -324,19 +324,16 @@ int main(int argc, char* argv[])
     path[strlen(path) - 1] = '\0';
 
     if (readRom(path))
-    {
         exit(1);
-    }
 
     initializeSDL("Chip8", 10);
 
-
+    //Main Loop
     while (poll_events())
     {
         chip_cycle();
         update_screen();
     }
-
 
     cleanSDL();
     return 0;
