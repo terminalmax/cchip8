@@ -7,8 +7,10 @@
 #include<time.h>
 
 //Resolution of CHIP-8
+#define FRAME_RATE 10
 #define SCREEN_HEIGHT 32
 #define SCREEN_WIDTH 64
+
 
 /*  -- CHIP-8 --
     & is used to 'mask' the bits and >> is used to set them in the right place.
@@ -54,21 +56,22 @@ void initializeChip()
     memset(registers, 0, sizeof(registers));
     index_register = 0;
 
-    memset(stack, 0, sizeof(stack));
+    for (int i = 0; i < 16; ++i) stack[i] = 0;
     stack_pointer = 0;
 
-    memset(display, 0, sizeof(display));
-    memset(keys, 0, sizeof(keys));
+    for (int i = 0; i < SCREEN_HEIGHT * SCREEN_WIDTH; ++i) display[0];
+    for (int i = 0; i < 16; ++i) keys[0];
 
     //Loading fonts
     const uint32_t fonts[16] = { 0xF999F, 0x72262, 0xF8F1F, 0xF1F1F, 0x11F99, 0xF1F8F, 0xF9F8F, 0x4421F, 0xF9F9F, 0xF1F9F, 0x99F9F, 0xE9E9E, 0xF888F, 0xE999E, 0xF8F8F, 0x88F8F };
     for (int i = 0; i < 80; ++i)
     {
         Memory[i] = ((fonts[i / 5] >> (4 * (i % 5))) & 0xF) << 4;
+        //To print font in binary
+        for (int j = 7; j > -1; --j) printf("%u", (Memory[i] >> j) & 0x1);
+        printf("\n");
+        if ((i+1) % 5 == 0) printf("\n");
     }
-
-
-
 }
 
 int readRom(const char* filename)
@@ -131,17 +134,17 @@ void chip_cycle()
     case 0x0:
         switch (opcode & 0x00FF)
         {
-        case 0xE0:  memset(display, 0, sizeof(display)); break;
+        case 0xE0:  for(int i = 0; i < SCREEN_HEIGHT * SCREEN_WIDTH; ++i)display[i] = 0; break;
         case 0xEE:  program_counter = stack[stack_pointer--]; break;
         default:    printf("Invalid OPCODE at Branch 0x0 : %u", opcode); break;
         }break;
     case 0x2:   stack[++stack_pointer] = program_counter;
-    case 0x1:   program_counter = _NNN; break;
-    case 0x3:   if(VX == _NN)program_counter+=2; break;
-    case 0x4:   if(VX != _NN)program_counter+=2; break;
-    case 0x5:   if(VX == VY)program_counter+=2; break;
-    case 0x6:   if(VX = _NN); break;
-    case 0x7:   if(VX += _NN); break;
+    case 0x1:   program_counter = _NNN;             break;
+    case 0x3:   if(VX == _NN)   program_counter+=2; break;
+    case 0x4:   if(VX != _NN)   program_counter+=2; break;
+    case 0x5:   if(VX == VY)    program_counter+=2; break;
+    case 0x6:   VX = _NN;                           break;
+    case 0x7:   VX += _NN;                          break;
     case 0x8:
         switch (opcode & 0x000F)
         {
@@ -155,8 +158,8 @@ void chip_cycle()
             VX = (VX + VF) & 0xFF;
         }  break;
         case 0x5: {
+            VF = 0;
             if (VX > VY) VF = 1;
-            else VF = 0;
             VX -= VF;
         }  break;
         case 0x6: {
@@ -164,9 +167,9 @@ void chip_cycle()
             VX >>= 1;
         } break;
         case 0x7: {
-            if (VX > VY) VF = 1;
-            else VF = 0;
-            VX = VF - VX;
+            VF = 0;
+            if (VY > VX) VF = 1;
+            VX = VY - VX;
         } break;
         case 0xE: {
             VF = (VX & 0x80) >> 7;
@@ -176,9 +179,12 @@ void chip_cycle()
         }break;
     case 0x9:if(VX != VY)program_counter+=2; break;
     case 0xA: index_register = _NNN; break;
-    case 0xB: registers[0] + _NNN; break;
-    case 0xC: VX = rand() & _NN;
+    case 0xB: program_counter = registers[0] + _NNN; break;
+    case 0xC: VX = (rand()%256) & _NN; break;
     case 0xD: {
+
+        unsigned int xpos = VX % 64;
+        unsigned int ypos = VY % 32;
 
         //VF is used to check for collision
         VF = 0;
@@ -186,7 +192,7 @@ void chip_cycle()
         for (int i = 0; i < _N; ++i)
             for (int j = 0; j < 8; ++j)
             {
-                uint32_t* screenpixel = &display[(((VY % 32) + i) * SCREEN_HEIGHT) + ((VX % 64) + j)];
+                uint32_t* screenpixel = &display[((ypos + i) * SCREEN_WIDTH) + (xpos + j)];
                 if (Memory[index_register + i] & (0x80 >> j))
                 {
                     if (*screenpixel == 0xFFFFFFFF) VF = 1;
@@ -205,22 +211,21 @@ void chip_cycle()
     case 0xF:
         switch (opcode & 0x00FF)
         {
-        case 0x07:  VX = delay_timer; break;
+        case 0x07:  VX = delay_timer;           break;
         case 0x0A: {
             program_counter -= 2;
-            for (int i = 0; i < 16; ++i) 
+            for (int i = 0; i < 16; ++i)
                 if (keys[i])
                 {
                     VX = 1;
                     program_counter += 2;
                     break;
                 }
-            
-        } break;
-        case 0x15:  delay_timer = VX; break;
-        case 0x18:  sound_timer = VX; break;
-        case 0x1E:  index_register += VX; break;
-        case 0x29:  index_register = VX * 5; break;
+        }                    break;
+        case 0x15:  delay_timer = VX;           break;
+        case 0x18:  sound_timer = VX;           break;
+        case 0x1E:  index_register += VX;       break;
+        case 0x29:  index_register = VX * 5;    break;  //Select VX font
         case 0x33: {
             uint8_t temp = VX;
             Memory[index_register + 2] = temp % 10;
@@ -229,10 +234,10 @@ void chip_cycle()
             temp /= 10;
             Memory[index_register] = temp % 10;
         } break;
-        case 0x55:  for(int i = 0; i <= VX; ++i) Memory[index_register + i] = registers[i]; break;
-        case 0x65:  for(int i = 0; i <= VX; ++i) registers[i] = Memory[index_register + i]; break;
-        default:  printf("Invalid OPCODE at Branch 0xF : %u", opcode); break;
-        }
+        case 0x55:  for (int i = 0; i <= VX; ++i) Memory[index_register + i] = registers[i]; break;
+        case 0x65:  for (int i = 0; i <= VX; ++i) registers[i] = Memory[index_register + i]; break;
+        default:    printf("Invalid OPCODE at Branch 0xF : %u", opcode); break;
+        }break;
     default:  printf("Invalid OPCODE at Branch Main : %u", opcode); break;
     }
 
@@ -353,22 +358,33 @@ void cleanSDL()
 
 int main(int argc, char* argv[])
 {
+    //Initializing CHIP
+    initializeChip();
 
     //Taking rom input
     char path[30];
     printf("Enter the path:");
     fgets(path, 30, stdin);
     path[strlen(path) - 1] = '\0';
-
     readRom(path);
 
     initializeSDL("Chip8", 10);
 
+    time_t time1 = time(0);
+
     //Main Loop
-    while (poll_events())
+    int loop = 1;
+    while (loop)
     {
-        chip_cycle();
-        update_screen();
+        time_t time2 = time(0) - time1;
+        if (time2 > FRAME_RATE)
+        {
+            time1 = time2;
+            loop = poll_events();
+            chip_cycle();
+            update_screen();
+        }
+        
     }
 
     cleanSDL();
