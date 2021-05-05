@@ -45,6 +45,8 @@ int keys[16]; //Chip-8 has 16 keys
 
 void initializeChip()
 {
+    srand(time(0));
+
     opcode = 0;
     memset(Memory, 0, sizeof(Memory));
     program_counter = STARTING_ADDRESS;
@@ -143,21 +145,39 @@ void chip_cycle()
     case 0x8:
         switch (opcode & 0x000F)
         {
-        case 0x0:   VX = VY; break;
+        case 0x0:   VX = VY;  break;
         case 0x1:   VX |= VY; break;
         case 0x2:   VX &= VY; break;
         case 0x3:   VX ^= VY; break;
-        case 0x4:; break;
-        case 0x5:; break;
-        case 0x6:; break;
-        case 0x7:; break;
-        case 0xE:; break;
+        case 0x4: {
+            VF = 0;
+            if (VX + VY > 255) VF = 1;
+            VX = (VX + VF) & 0xFF;
+        }  break;
+        case 0x5: {
+            if (VX > VY) VF = 1;
+            else VF = 0;
+            VX -= VF;
+        }  break;
+        case 0x6: {
+            VF = VX & 0x1;
+            VX >>= 1;
+        } break;
+        case 0x7: {
+            if (VX > VY) VF = 1;
+            else VF = 0;
+            VX = VF - VX;
+        } break;
+        case 0xE: {
+            VF = (VX & 0x80) >> 7;
+            VX <<= 1;
+        } break;
         default:  printf("Invalid OPCODE at Branch 0x8 : %u", opcode); break;
         }break;
     case 0x9:if(VX != VY)program_counter+=2; break;
     case 0xA: index_register = _NNN; break;
-    case 0xB:; break;
-    case 0xC:; break;
+    case 0xB: registers[0] + _NNN; break;
+    case 0xC: VX = rand() & _NN;
     case 0xD: {
 
         //VF is used to check for collision
@@ -186,14 +206,31 @@ void chip_cycle()
         switch (opcode & 0x00FF)
         {
         case 0x07:  VX = delay_timer; break;
-        case 0x0A:; break;
+        case 0x0A: {
+            program_counter -= 2;
+            for (int i = 0; i < 16; ++i) 
+                if (keys[i])
+                {
+                    VX = 1;
+                    program_counter += 2;
+                    break;
+                }
+            
+        } break;
         case 0x15:  delay_timer = VX; break;
         case 0x18:  sound_timer = VX; break;
-        case 0x1E:; break;
-        case 0x29:; break;
-        case 0x33:; break;
-        case 0x55:; break;
-        case 0x65:; break;
+        case 0x1E:  index_register += VX; break;
+        case 0x29:  index_register = VX * 5; break;
+        case 0x33: {
+            uint8_t temp = VX;
+            Memory[index_register + 2] = temp % 10;
+            temp /= 10;
+            Memory[index_register + 1] = temp % 10;
+            temp /= 10;
+            Memory[index_register] = temp % 10;
+        } break;
+        case 0x55:  for(int i = 0; i <= VX; ++i) Memory[index_register + i] = registers[i]; break;
+        case 0x65:  for(int i = 0; i <= VX; ++i) registers[i] = Memory[index_register + i]; break;
         default:  printf("Invalid OPCODE at Branch 0xF : %u", opcode); break;
         }
     default:  printf("Invalid OPCODE at Branch Main : %u", opcode); break;
@@ -320,11 +357,10 @@ int main(int argc, char* argv[])
     //Taking rom input
     char path[30];
     printf("Enter the path:");
-    fgets(path, 29, stdin);
+    fgets(path, 30, stdin);
     path[strlen(path) - 1] = '\0';
 
-    if (readRom(path))
-        exit(1);
+    readRom(path);
 
     initializeSDL("Chip8", 10);
 
