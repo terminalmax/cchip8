@@ -4,13 +4,11 @@
 #include<stdio.h>
 #include<stdlib.h>
 #include<string.h>
-#include<time.h>
 
 //Resolution of CHIP-8
 #define FRAME_RATE 10
 #define SCREEN_HEIGHT 32
 #define SCREEN_WIDTH 64
-
 
 /*  -- CHIP-8 --
     & is used to 'mask' the bits and >> is used to set them in the right place.
@@ -58,6 +56,9 @@ void initializeChip()
 
     for (int i = 0; i < 16; ++i) stack[i] = 0;
     stack_pointer = 0;
+    
+    delay_timer = 0;
+    sound_timer = 0;
 
     for (int i = 0; i < SCREEN_HEIGHT * SCREEN_WIDTH; ++i) display[0];
     for (int i = 0; i < 16; ++i) keys[0];
@@ -67,10 +68,6 @@ void initializeChip()
     for (int i = 0; i < 80; ++i)
     {
         Memory[i] = ((fonts[i / 5] >> (4 * (i % 5))) & 0xF) << 4;
-        //To print font in binary
-        for (int j = 7; j > -1; --j) printf("%u", (Memory[i] >> j) & 0x1);
-        printf("\n");
-        if ((i+1) % 5 == 0) printf("\n");
     }
 }
 
@@ -87,7 +84,7 @@ int readRom(const char* filename)
     unsigned int size = ftell(rom);
     rewind(rom);
 
-    uint8_t* buffer = (uint8_t*)malloc(size * sizeof(uint8_t));
+    uint8_t* buffer = (uint8_t*)malloc(size);
 
     if (buffer == NULL)
     {
@@ -96,12 +93,6 @@ int readRom(const char* filename)
     }
 
     fread(buffer, sizeof(uint8_t), size, rom);
-
-    for (int i = 0; i < size; i++)
-    {
-        printf("%x ", buffer[i]);
-    }
-
 
     if (size <= ENDING_ADDRESS - STARTING_ADDRESS)
     {
@@ -114,7 +105,6 @@ int readRom(const char* filename)
         exit(1);
     }
 
-
     fclose(rom);
     free(buffer);
 
@@ -123,7 +113,6 @@ int readRom(const char* filename)
 
 void chip_cycle()
 {
-
     //FETCH and DECODE
     opcode = (Memory[program_counter] << 8) | Memory[program_counter + 1];
     program_counter += 2;
@@ -136,7 +125,7 @@ void chip_cycle()
         {
         case 0xE0:  for(int i = 0; i < SCREEN_HEIGHT * SCREEN_WIDTH; ++i)display[i] = 0; break;
         case 0xEE:  program_counter = stack[stack_pointer--]; break;
-        default:    printf("Invalid OPCODE at Branch 0x0 : %u", opcode); break;
+        default:    printf("Invalid OPCODE at Branch 0x0 : %x\n", opcode); break;
         }break;
     case 0x2:   stack[++stack_pointer] = program_counter;
     case 0x1:   program_counter = _NNN;             break;
@@ -154,13 +143,14 @@ void chip_cycle()
         case 0x3:   VX ^= VY; break;
         case 0x4: {
             VF = 0;
-            if (VX + VY > 255) VF = 1;
-            VX = (VX + VF) & 0xFF;
+            unsigned int sum = VX + VY;
+            if (sum > 255) VF = 1;
+            VX = sum & 0xFF;
         }  break;
         case 0x5: {
             VF = 0;
             if (VX > VY) VF = 1;
-            VX -= VF;
+            VX -= VY;
         }  break;
         case 0x6: {
             VF = VX & 0x1;
@@ -175,7 +165,7 @@ void chip_cycle()
             VF = (VX & 0x80) >> 7;
             VX <<= 1;
         } break;
-        default:  printf("Invalid OPCODE at Branch 0x8 : %u", opcode); break;
+        default:  printf("Invalid OPCODE at Branch 0x8 : %x\n", opcode); break;
         }break;
     case 0x9:if(VX != VY)program_counter+=2; break;
     case 0xA: index_register = _NNN; break;
@@ -195,7 +185,7 @@ void chip_cycle()
                 uint32_t* screenpixel = &display[((ypos + i) * SCREEN_WIDTH) + (xpos + j)];
                 if (Memory[index_register + i] & (0x80 >> j))
                 {
-                    if (*screenpixel == 0xFFFFFFFF) VF = 1;
+                    if (*screenpixel) VF = 1;
                     *screenpixel ^= 0xFFFFFFFF;
                 }
             }
@@ -204,10 +194,10 @@ void chip_cycle()
     case 0xE:
         switch (opcode & 0x00FF)
         {
-        case 0x9E:if(keys[VX] == 1)program_counter+=2; break;
-        case 0xA1:if(keys[VX] == 0)program_counter+=2; break;
-        default: printf("Invalid OPCODE at Branch 0xE : %u", opcode); break;
-        }
+        case 0x9E:if (keys[VX] == 1)program_counter += 2; break;
+        case 0xA1:if (keys[VX] == 0)program_counter += 2; break;
+        default: printf("Invalid OPCODE at Branch 0xE : %x\n", opcode); break;
+        }break;
     case 0xF:
         switch (opcode & 0x00FF)
         {
@@ -232,13 +222,13 @@ void chip_cycle()
             temp /= 10;
             Memory[index_register + 1] = temp % 10;
             temp /= 10;
-            Memory[index_register] = temp % 10;
+            Memory[index_register] = temp;
         } break;
-        case 0x55:  for (int i = 0; i <= VX; ++i) Memory[index_register + i] = registers[i]; break;
-        case 0x65:  for (int i = 0; i <= VX; ++i) registers[i] = Memory[index_register + i]; break;
-        default:    printf("Invalid OPCODE at Branch 0xF : %u", opcode); break;
+        case 0x55:  for (int i = 0; i <= _X; ++i) Memory[index_register + i] = registers[i]; break;
+        case 0x65:  for (int i = 0; i <= _X; ++i) registers[i] = Memory[index_register + i]; break;
+        default:    printf("Invalid OPCODE at Branch 0xF : %x\n", opcode); break;
         }break;
-    default:  printf("Invalid OPCODE at Branch Main : %u", opcode); break;
+    default:  printf("Invalid OPCODE at Branch Main : %x\n", opcode); break;
     }
 
     //Change timers
@@ -370,23 +360,13 @@ int main(int argc, char* argv[])
 
     initializeSDL("Chip8", 10);
 
-    time_t time1 = time(0);
-
     //Main Loop
-    int loop = 1;
-    while (loop)
+    while (poll_events())
     {
-        time_t time2 = time(0) - time1;
-        if (time2 > FRAME_RATE)
-        {
-            time1 = time2;
-            loop = poll_events();
-            chip_cycle();
-            update_screen();
-        }
-        
+        chip_cycle();
+        update_screen();
+        SDL_Delay(32); //16 ms delay gets us 60 fps
     }
-
     cleanSDL();
     return 0;
 }
