@@ -1,5 +1,6 @@
 # CCHIP-8 #
-A simple single file CHIP-8 emulator written in C.
+A simple, single file CHIP-8 emulator written in C.
 
 ## Dependencies ##
-Requires SDL2
+SDL2
+Visual Studio
