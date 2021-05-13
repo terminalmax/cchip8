@@ -3,4 +3,4 @@ A simple, single file CHIP-8 emulator written in C.
 
 ## Dependencies ##
 SDL2
-Visual Studio
+SDL2\_mixer
