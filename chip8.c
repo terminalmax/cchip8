@@ -1,14 +1,17 @@
-#define _CRT_SECURE_NO_DEPRECATE //Visual Studio does not like fopen or scanf  > :|
-
-#include<SDL.h>
+#include<SDL2/SDL.h>
+#include<SDL2/SDL_mixer.h>
 #include<stdio.h>
 #include<stdlib.h>
 #include<string.h>
+#include<time.h>
 
 //Resolution of CHIP-8
 #define FRAME_RATE 10
 #define SCREEN_HEIGHT 32
 #define SCREEN_WIDTH 64
+
+/* AUDIO */
+Mix_Chunk* beep = NULL;
 
 /*  -- CHIP-8 --
     & is used to 'mask' the bits and >> is used to set them in the right place.
@@ -233,7 +236,10 @@ void chip_cycle()
 
     //Change timers
     if (delay_timer > 0) --delay_timer; 
-    if (sound_timer > 0) --sound_timer; //Play sound when soundtimer > 0
+    if (sound_timer > 0){
+	    sound_timer--;
+	    Mix_PlayChannel(-1, beep, 0);
+    } 
 
 }
 
@@ -252,9 +258,9 @@ void chip_cycle()
 A platform layer
 */
 
-SDL_Window* window;
-SDL_Renderer* renderer;
-SDL_Texture* texture;
+SDL_Window* window = NULL;
+SDL_Renderer* renderer = NULL;
+SDL_Texture* texture = NULL;
 
 //Initialises all SDL componenets
 void initializeSDL(const char* title, int scale)
@@ -263,6 +269,18 @@ void initializeSDL(const char* title, int scale)
     {
         printf("Could not Initialize SDL!");
         exit(1);
+    }
+    if (Mix_OpenAudio(44100, MIX_DEFAULT_FORMAT, 1, 2048) < 0)
+    {
+	    printf("Could not initialize sdl mixer!");
+	    exit(1);
+    }
+    
+    beep = Mix_LoadWAV("beep");
+    if(beep == NULL)
+    {
+	    printf("Could not open beep.wav");
+	    exit(1);
     }
     window = SDL_CreateWindow("Chip-8", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, (SCREEN_WIDTH * scale), (SCREEN_HEIGHT * scale), SDL_WINDOW_SHOWN);
     renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
@@ -339,12 +357,15 @@ void update_screen()
 //Destroys all SDL entities and quits SDL
 void cleanSDL()
 {
+    Mix_FreeChunk(beep);
+
     SDL_DestroyTexture(texture);
     SDL_DestroyRenderer(renderer);
     SDL_DestroyWindow(window);
+
+    Mix_Quit();
     SDL_Quit();
 }
-
 
 int main(int argc, char* argv[])
 {
