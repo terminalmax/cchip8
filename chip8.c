@@ -30,27 +30,28 @@ Mix_Chunk* beep = NULL;
 #define ENDING_ADDRESS   0xFFF
 
 //Chip8 Variables
-uint16_t opcode = 0;                         //Holds current opcode. Each instruction is exactly 2bytes (16bits) long
-uint8_t Memory[0x1000] = { 0 };                //CHIP-8 has 4096 bytes of memory
-uint16_t program_counter = STARTING_ADDRESS; //Holds the location in memory for the next instruction to be executed
+uint16_t opcode = 0;                        	 //Holds current opcode. Each instruction is exactly 2bytes (16bits) long
+uint8_t Memory[0x1000] = { 0 };               	 //CHIP-8 has 4096 bytes of memory
+uint16_t program_counter = STARTING_ADDRESS;	 //Holds the location in memory for the next instruction to be executed
 
-uint8_t registers[16] = { 0 };    //16 8bit registers 
-uint16_t index_register = 0;    //1 16bit index register
+uint8_t registers[16] = { 0 };   		 //16 8bit registers 
+uint16_t index_register = 0;   			 //1 16bit index register
 
-uint16_t stack[16] = { 0 };   //The stack holds on to the current location before making a jump.
-uint8_t stack_pointer = 0;  //Holds the top location of stack
+uint16_t stack[16] = { 0 };  			 //The stack holds on to the current location before making a jump.
+uint8_t stack_pointer = 0; 			 //Holds the top location of stack
 
-uint8_t delay_timer = 0;
+uint8_t delay_timer = 0;			 //Two 8 bit timers
 uint8_t sound_timer = 0;
 
-uint32_t display[SCREEN_HEIGHT * SCREEN_WIDTH] = { 0 }; //The display array is used to store pixel information
-int keys[16]; //Chip-8 has 16 keys
+uint32_t display[SCREEN_HEIGHT * SCREEN_WIDTH] = { 0 };	 //The display array is used to store pixel information
+int keys[16];						 //Chip-8 has 16 input keys
 
+//Initialize all chip8 components
 void initializeChip()
 {
-    srand(time(0));
+    srand(time(0));	//Seeding random function for the random number generating opcode
 
-    opcode = 0;
+    opcode = 0; 
     memset(Memory, 0, sizeof(Memory));
     program_counter = STARTING_ADDRESS;
 
@@ -66,7 +67,7 @@ void initializeChip()
     for (int i = 0; i < SCREEN_HEIGHT * SCREEN_WIDTH; ++i) display[0];
     for (int i = 0; i < 16; ++i) keys[0];
 
-    //Loading fonts
+    //Loading default sprites/fonts for chip8.
     const uint32_t fonts[16] = { 0xF999F, 0x72262, 0xF8F1F, 0xF1F1F, 0x11F99, 0xF1F8F, 0xF9F8F, 0x4421F, 0xF9F9F, 0xF1F9F, 0x99F9F, 0xE9E9E, 0xF888F, 0xE999E, 0xF8F8F, 0x88F8F };
     for (int i = 0; i < 80; ++i)
     {
@@ -74,6 +75,7 @@ void initializeChip()
     }
 }
 
+//Read binary rom file for chip8
 int readRom(const char* filename)
 {
     FILE* rom = fopen(filename, "rb");
@@ -255,7 +257,7 @@ void chip_cycle()
 
 
 /*  --EMULATOR PLATFORM LAYER--
-A platform layer
+I'm using SDL as the Platform Layer becuase it makes input and audio handling very easy.
 */
 
 SDL_Window* window = NULL;
@@ -265,7 +267,7 @@ SDL_Texture* texture = NULL;
 //Initialises all SDL componenets
 void initializeSDL(const char* title, int scale)
 {
-    if (SDL_Init(SDL_INIT_EVERYTHING))
+    if (SDL_Init(SDL_INIT_VIDEO|SDL_INIT_AUDIO|SDL_INIT_TIMER|SDL_INIT_EVENTS))
     {
         printf("Could not Initialize SDL!");
         exit(1);
@@ -386,8 +388,9 @@ int main(int argc, char* argv[])
     {
         chip_cycle();
         update_screen();
-        SDL_Delay(32); //16 ms delay gets us 60 fps
+        SDL_Delay(17); //17 ms delay gets ~ 60 fps
     }
+
     cleanSDL();
     return 0;
 }
