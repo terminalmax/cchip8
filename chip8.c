@@ -6,7 +6,6 @@
 #include<time.h>
 
 //Resolution of CHIP-8
-#define FRAME_RATE 10
 #define SCREEN_HEIGHT 32
 #define SCREEN_WIDTH 64
 
@@ -388,7 +387,7 @@ int main(int argc, char* argv[])
     {
         chip_cycle();
         update_screen();
-        SDL_Delay(17); //17 ms delay gets ~ 60 fps
+        SDL_Delay(4); //17 ms delay gets ~ 60 fps
     }
 
     cleanSDL();
