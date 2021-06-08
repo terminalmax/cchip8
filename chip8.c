@@ -1,5 +1,7 @@
 #include<SDL2/SDL.h>
 #include<SDL2/SDL_mixer.h>
+#include<SDL2/SDL_ttf.h>
+
 #include<stdio.h>
 #include<stdlib.h>
 #include<string.h>
@@ -63,8 +65,8 @@ void initializeChip()
     delay_timer = 0;
     sound_timer = 0;
 
-    for (int i = 0; i < SCREEN_HEIGHT * SCREEN_WIDTH; ++i) display[0];
-    for (int i = 0; i < 16; ++i) keys[0];
+    for (int i = 0; i < SCREEN_HEIGHT * SCREEN_WIDTH; ++i) display[i] = 0;
+    for (int i = 0; i < 16; ++i) keys[i] = 0;
 
     //Loading default sprites/fonts for chip8.
     const uint32_t fonts[16] = { 0xF999F, 0x72262, 0xF8F1F, 0xF1F1F, 0x11F99, 0xF1F8F, 0xF9F8F, 0x4421F, 0xF9F9F, 0xF1F9F, 0x99F9F, 0xE9E9E, 0xF888F, 0xE999E, 0xF8F8F, 0x88F8F };
@@ -263,6 +265,8 @@ SDL_Window* window = NULL;
 SDL_Renderer* renderer = NULL;
 SDL_Texture* texture = NULL;
 
+TTF_Font* roboto = TTF_OpenFont("./fonts/RobotoCondensed-Regular.ttf");
+
 //Initialises all SDL componenets
 void initializeSDL(const char* title, int scale)
 {
@@ -273,16 +277,22 @@ void initializeSDL(const char* title, int scale)
     }
     if (Mix_OpenAudio(44100, MIX_DEFAULT_FORMAT, 1, 2048) < 0)
     {
-	    printf("Could not initialize sdl mixer!");
-	    exit(1);
+	printf("Could not initialize sdl mixer!");
+	exit(1);
     }
-    
+    if (TTF_Init())
+    {
+	printf("Could not initialize SDL_ttf\n");
+	exit(1);
+    }
+
     beep = Mix_LoadWAV("beep");
     if(beep == NULL)
     {
 	    printf("Could not open beep.wav");
 	    exit(1);
     }
+
     window = SDL_CreateWindow("Chip-8", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, (SCREEN_WIDTH * scale), (SCREEN_HEIGHT * scale), SDL_WINDOW_SHOWN);
     renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
     texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING, SCREEN_WIDTH, SCREEN_HEIGHT);
